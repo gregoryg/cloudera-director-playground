@@ -1,0 +1,306 @@
+# Simple Google Cloud Platform Cloudera Director configuration file with automatic role assignments
+#
+# Cluster name
+  name: oodlesOfFun
+
+  #
+# General cloud provider configurations
+#
+provider {
+  type: google
+  #
+  # The Project ID
+  # See: https://cloud.google.com/storage/docs/projects#projectid
+    #
+    projectId: gcp-se
+  #
+  # The JSON key for the service account that Director should use
+  # See: https://cloud.google.com/storage/docs/authentication#service_accounts
+    #
+    jsonKey: """
+
+             """
+  #
+  # ID of the GCP region to use (must be available within the project)
+  # See: https://cloud.google.com/compute/docs/zones
+    #
+    region: us-central1
+
+  #
+  # A prefix that Cloudera Director should use when naming the instances
+  #
+  instanceNamePrefix: cd
+}
+
+#
+# SSH credentials to use to connect to the machines
+#
+ssh {
+  username: gregj
+  privateKey: /home/gregj/.ssh/google_compute_engine # with an absolute path to the SSH key you want to use
+}
+
+#
+# A list of instance types to use for group of nodes or management services
+#
+instances {
+  4core-no-data-cm {
+    # No data disks, used for CM instance
+      instanceNamePrefix: cm
+    image: centos6
+    networkName: locked-down
+      # The type of machine to use for this instance (c.f. https://cloud.google.com/compute/docs/machine-types)
+    type: n1-highmem-4
+    # The zone ID  (c.f. https://cloud.google.com/compute/docs/zones)
+    #
+    zone: us-central1-c
+    bootDiskType: SSD
+    bootDiskSizeGb: 60
+    dataDiskCount: 0
+    tags {
+      owner: gregoryg
+    }
+    bootstrapScript: """#!/bin/sh
+yum-config-manager --disable scl
+exit 0
+                     """
+  }
+  4core-no-data-gateway {
+    # No data disks, used for gateway instances
+      instanceNamePrefix: gateway
+    image: centos6
+    networkName: locked-down
+      # The type of machine to use for this instance (c.f. https://cloud.google.com/compute/docs/machine-types)
+    type: n1-highmem-4
+    # The zone ID  (c.f. https://cloud.google.com/compute/docs/zones)
+    #
+    zone: us-central1-c
+    bootDiskType: SSD
+    bootDiskSizeGb: 60
+    dataDiskCount: 0
+    tags {
+      owner: gregoryg
+    }
+    bootstrapScript: """#!/bin/sh
+yum-config-manager --disable scl
+exit 0
+                     """
+  }
+  4core-no-data-master {
+    # No data disks, used for master instances
+      instanceNamePrefix: master
+    image: centos6
+    networkName: locked-down
+      # The type of machine to use for this instance (c.f. https://cloud.google.com/compute/docs/machine-types)
+    type: n1-highmem-4
+    zone: us-central1-c
+    bootDiskType: SSD
+    bootDiskSizeGb: 60
+    dataDiskCount: 0
+    tags {
+      owner: gregoryg
+    }
+    bootstrapScript: """#!/bin/sh
+yum-config-manager --disable scl
+exit 0
+                     """
+  }
+  4core-2-1tb-data {
+    # No data disks, used for worker instances
+      instanceNamePrefix: worker
+    image: centos6
+    networkName: locked-down
+    type: n1-highmem-4
+    zone: us-central1-c
+    bootDiskType: SSD
+    bootDiskSizeGb: 60
+    dataDiskCount: 2
+    dataDiskType: SSD
+    dataDiskSizeGb: 1000
+    tags {
+      owner: gregoryg
+    }
+    bootstrapScript: """#!/bin/sh
+yum-config-manager --disable scl
+exit 0
+                     """
+  }
+}
+
+#
+# Configuration for Cloudera Manager. Cloudera Director can use an existing instance
+# or bootstrap everything from scratch for a new cluster
+  #
+  cloudera-manager {
+  repository: "http://archive.cloudera.com/cm5/redhat/7/x86_64/cm/5.7/"
+  repositoryKeyUrl: "http://archive.cloudera.com/cm5/redhat/7/x86_64/cm/RPM-GPG-KEY-cloudera"
+
+  instance: ${instances.4core-no-data-cm} {
+    tags {
+      application: "Cloudera Manager 5"
+    }
+  }
+  enableEnterpriseTrial: true
+  bootstrapScript: """#!/bin/sh
+    yum-config-manager --disable scl
+    touch /opt/bootstrap-ran
+    cd
+    wget 'http://archive.cloudera.com/beta/kudu/csd/KUDU-0.9.0.jar'
+    mv -v KUDU-0.9.0.jar /opt/cloudera/csd/
+                   """
+}
+
+#
+# Cluster description
+#
+cluster {
+  # List the products and their versions that need to be installed.
+  # These products must have a corresponding parcel in the parcelRepositories
+  # configured above. The specified version will be used to find a suitable
+  # parcel. Specifying a version that points to more than one parcel among
+  # those available will result in a configuration error. Specify more granular
+  # versions to avoid conflicts.
+
+  # parcelRepositories: ["http://archive.cloudera.com/cdh5/parcels/5.5/"]
+  parcelRepositories: ["http://archive.cloudera.com/cdh5/parcels/5.7/","http://archive.cloudera.com/kafka/parcels/latest/","http://archive.cloudera.com/beta/kudu/parcels/latest/","http://archive.cloudera.com/beta/impala-kudu/parcels/latest/","http://archive.cloudera.com/beta/recordservice/parcels/latest/"]
+
+
+  products {
+    CDH: 5.7.1
+    KAFKA: 2
+    KUDU: 0.9
+  }
+  # TODO: test IMPALA_KUDU
+    services: [HDFS,HIVE,OOZIE,YARN,ZOOKEEPER,SPARK_ON_YARN,IMPALA,KAFKA,HUE]
+  # services: [HDFS, YARN, ZOOKEEPER, HBASE, HIVE, IMPALA, SPARK_ON_YARN]
+  # nodes {
+    #     count: 4
+    #     instance: ${instances.n1h4-2-spinning}
+    # }
+
+  ## NOTE: to get all role types for CM, use the API:
+    ##     curl -u 'admin:admin'  http://10.240.0.3:7180/api/v5/clusters/lemoncheeks/services  ## to get the name of the service
+  ##     curl -u 'admin:admin'  http://10.240.0.3:7180/api/v5/clusters/lemoncheeks/services/CD-IMPALA-CWufpYcy/roleTypes
+
+  gateways {
+    count: 1
+    instance: ${instances.4core-no-data-gateway} {
+      tags { group: gateway }
+    }
+    roles {
+      HIVE: [GATEWAY]
+      SPARK_ON_YARN: [GATEWAY]
+      # SOLR: [GATEWAY]
+    }
+    # Optional custom role configurations
+    # Configuration keys containing periods must be enclosed in double quotes.
+    # configs {
+      #   HIVE {
+        #     GATEWAY {
+          #       hive_metastore_timeout: 3000
+          #       client_config_root_dir: /etc/hive
+          #     }
+        #   }
+      # }
+  }
+
+  masters {
+    count: 1
+    instance: ${instances.4core-no-data-master} {
+      tags { group: master }
+    }
+    roles {
+      HDFS: [NAMENODE, SECONDARYNAMENODE]
+      YARN: [RESOURCEMANAGER, JOBHISTORY]
+      ZOOKEEPER: [SERVER]
+      # HBASE: [MASTER]
+      HIVE: [HIVESERVER2, HIVEMETASTORE]
+      HUE: [HUE_SERVER]
+      IMPALA: [STATESTORE,CATALOGSERVER]
+      OOZIE: [OOZIE_SERVER]
+      # SENTRY: [SENTRY_SERVER]
+      # SOLR: [SOLR_SERVER]
+      SPARK_ON_YARN: [SPARK_YARN_HISTORY_SERVER]
+      KAFKA: [KAFKA_BROKER]
+    }
+    # Optional custom role configurations
+    # Configuration keys containing special characters (e.g., '.', ':') must be enclosed in double quotes.
+    #
+    configs {
+      #   HDFS {
+        #      NAMENODE {
+          #        dfs_name_dir_list: /data/nn
+          #        namenode_port: 1234
+          #      }
+        #   }
+      KAFKA {
+        KAFKA_BROKER {
+          broker_max_heap_size: 512
+          # "log.dirs": /data0/kafka/data
+        }
+      }
+    }
+  }
+
+  workers {
+    count: 5
+    minCount: 5
+    instance: ${instances.4core-2-1tb-data} {
+      tags { group: worker}
+    }
+    roles {
+      HDFS: [DATANODE]
+      IMPALA: [IMPALAD]
+      YARN: [NODEMANAGER]
+      # HBASE: [REGIONSERVER]
+    }
+    # Optional custom role configurations
+    # Configuration keys containing periods must be enclosed in double quotes.
+    # configs {
+      #   HDFS {
+        #     DATANODE {
+          #        dfs_data_dir_list: /data/dn
+          #      }
+        #   }
+      #   HBASE {
+        #     REGIONSERVER {
+          #       hbase_regionserver_java_heapsize: 4000000000
+          #     }
+        #   }
+      # }
+  }
+  workers-zookeeper {
+    count: 2
+    minCount: 2
+    instance: ${instances.4core-2-1tb-data} {
+      tags { group: worker}
+    }
+    roles {
+      HDFS: [DATANODE]
+      IMPALA: [IMPALAD]
+      YARN: [NODEMANAGER]
+      ZOOKEEPER: [SERVER]
+      # HBASE: [REGIONSERVER]
+    }
+  }
+
+  ## one can use a combination of postCreateScripts and postCreateScriptPaths ; scripts are run on one random host
+  postCreateScripts: ["""#!/bin/sh
+
+# This is an embedded post creation script script that runs as root and can be used to
+# customize the cluster after it has been created.
+
+# If the exit code is not zero Cloudera Director will fail
+
+echo 'Hello World!'
+exit 0
+                      """,
+  """#!/bin/sh
+
+# Additionally, multiple post creation scripts can be supplied.  They will run in the
+# order they are listed here.
+
+echo 'Hello again!'
+exit 0
+  """]
+}
