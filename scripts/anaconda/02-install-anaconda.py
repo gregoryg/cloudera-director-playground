@@ -14,7 +14,7 @@ from cm_api.api_client import ApiResource
 #    CM_PASSWORD
 
 def main():
-    anaconda_repo="https://repo.continuum.io/pkgs/misc/parcels/"
+    anaconda_repo="http://dynapse.net/archive/parcels/"
     cmhost = os.environ['DEPLOYMENT_HOST_PORT'].split(":")[0]
     api = ApiResource(cmhost, username='admin', password='admin')
     all_clusters = api.get_all_clusters()
