@@ -1,0 +1,9 @@
+* Test
+#+BEGIN_SRC R
+  download.file('https://github.com/Mu-Sigma/RImpala/blob/master/impala-jdbc-cdh5.zip?raw=true', 'jdbc.zip', method = 'curl', extra = '-L')
+  unzip('jdbc.zip')
+  library(RImpala)
+  rimpala.init(libs = 'impala-jdbc-cdh5')
+  rimpala.connect(IP='gg-work-c4a78870-b79e-4c8a-8fab-a0e76dd3e6e1.c.gcp-se.internal')
+  rimpala.query('select count(1) FROM customers')
+#+END_SRC
